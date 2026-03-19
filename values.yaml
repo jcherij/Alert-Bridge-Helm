@@ -1,0 +1,102 @@
+# -----------------------------------------------------------------------
+# VitalBridge — Default values
+# GCP resource references are injected at deploy time from Terraform outputs.
+# Override per environment via -f values-production.yaml
+# -----------------------------------------------------------------------
+
+global:
+  environment: production
+
+# GCP resource references — populated from terraform outputs at deploy time
+gcp:
+  projectId: ""
+  vitalsTopic: ""
+  vitalsSubscription: ""
+  archiveBucket: ""
+  bqDataset: ""
+  bqTable: ""
+  alertSecretId: ""
+
+image:
+  ingest:
+    repository: gcr.io/example-health/vitalbridge-ingest
+    tag: "1.0.0"
+    pullPolicy: IfNotPresent
+  processor:
+    repository: gcr.io/example-health/vitalbridge-processor
+    tag: "1.0.0"
+    pullPolicy: IfNotPresent
+  alertEvaluator:
+    repository: gcr.io/example-health/vitalbridge-alert-evaluator
+    tag: "1.0.0"
+    pullPolicy: IfNotPresent
+
+serviceAccount:
+  # GCP SA email for Workload Identity — injected from terraform output
+  gcpEmail: ""
+
+ingest:
+  replicaCount: 2
+  port: 8080
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+processor:
+  replicaCount: 2
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+alertEvaluator:
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+
+ingress:
+  enabled: true
+  className: nginx
+  host: vitalbridge.example-health.com
+  tls:
+    enabled: true
+    secretName: vitalbridge-tls
+
+autoscaling:
+  ingest:
+    minReplicas: 2
+    maxReplicas: 8
+    targetCPUUtilizationPercentage: 70
+  processor:
+    minReplicas: 2
+    maxReplicas: 8
+    targetCPUUtilizationPercentage: 70
+
+podDisruptionBudget:
+  ingest:
+    minAvailable: 1
+  processor:
+    minAvailable: 1
+
+config:
+  # Alert thresholds — readings outside these ranges trigger an alert
+  heartRateMin: 40
+  heartRateMax: 150
+  spo2Min: 90
+  tempMin: 35.0
+  tempMax: 40.0
+  respRateMin: 8
+  respRateMax: 30
+  queueRefreshSeconds: 10

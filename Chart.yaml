@@ -1,0 +1,21 @@
+apiVersion: v2
+name: vitalbridge
+description: >
+  VitalBridge — Patient Vitals Ingestion and Alerting Pipeline.
+  Ingests real-time vitals readings from bedside monitors via GCP Pub/Sub,
+  streams them to BigQuery for time-series storage, and evaluates readings
+  against configurable alert thresholds. Critical alerts are dispatched via
+  a GCP Cloud Functions alert dispatcher. Handles PHI; HIPAA-compliant.
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+
+maintainers:
+  - name: Platform Engineering
+    email: platform@example-health.com
+
+keywords:
+  - healthcare
+  - hipaa
+  - vitals
+  - patient-monitoring
