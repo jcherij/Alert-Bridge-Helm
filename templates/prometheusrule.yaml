@@ -1,0 +1,75 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "vitalbridge.fullname" . }}-alerts
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "vitalbridge.labels" . | nindent 4 }}
+    release: prometheus
+spec:
+  groups:
+    - name: vitalbridge.ingest
+      interval: 30s
+      rules:
+        - alert: VitalBridgeIngestDown
+          expr: |
+            absent(up{namespace="{{ .Release.Namespace }}", component="ingest"} == 1)
+          for: 1m
+          labels:
+            severity: critical
+            app: vitalbridge
+          annotations:
+            summary: "VitalBridge ingest API pods are not running"
+            description: "No healthy ingest pods — bedside monitor readings are not being accepted"
+
+        - alert: VitalBridgeHighIngestErrorRate
+          expr: |
+            sum(rate(http_requests_total{namespace="{{ .Release.Namespace }}", component="ingest", status=~"5.."}[5m]))
+            /
+            sum(rate(http_requests_total{namespace="{{ .Release.Namespace }}", component="ingest"}[5m])) > 0.05
+          for: 2m
+          labels:
+            severity: critical
+            app: vitalbridge
+          annotations:
+            summary: "VitalBridge ingest error rate exceeds 5%"
+            description: "Vitals readings may be failing to ingest — check bedside monitor connectivity"
+
+    - name: vitalbridge.processor
+      interval: 30s
+      rules:
+        - alert: VitalBridgeProcessorDown
+          expr: |
+            absent(up{namespace="{{ .Release.Namespace }}", component="processor"} == 1)
+          for: 2m
+          labels:
+            severity: critical
+            app: vitalbridge
+          annotations:
+            summary: "VitalBridge processor pods are not running"
+            description: "No healthy processor pods — vitals are not being written to BigQuery"
+
+        - alert: VitalBridgePubSubBacklogHigh
+          expr: |
+            vitalbridge_pubsub_undelivered_messages_total{namespace="{{ .Release.Namespace }}"} > 1000
+          for: 5m
+          labels:
+            severity: warning
+            app: vitalbridge
+          annotations:
+            summary: "Pub/Sub vitals backlog is high"
+            description: "More than 1000 undelivered vitals messages — processor may be falling behind"
+
+    - name: vitalbridge.alerts
+      interval: 60s
+      rules:
+        - alert: VitalBridgeAlertEvaluatorDown
+          expr: |
+            absent(up{namespace="{{ .Release.Namespace }}", component="alert-evaluator"} == 1)
+          for: 2m
+          labels:
+            severity: critical
+            app: vitalbridge
+          annotations:
+            summary: "VitalBridge alert evaluator is not running"
+            description: "No healthy alert evaluator pods — critical vitals thresholds are not being monitored"

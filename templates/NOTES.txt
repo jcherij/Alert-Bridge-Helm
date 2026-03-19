@@ -1,0 +1,42 @@
+VitalBridge has been deployed successfully.
+
+Ingest API endpoint:
+  https://{{ .Values.ingress.host }}/ingest
+
+GCP Resources (from Terraform):
+  Pub/Sub topic:     {{ .Values.gcp.vitalsTopic }}
+  Archive bucket:    {{ .Values.gcp.archiveBucket }}
+  BigQuery dataset:  {{ .Values.gcp.bqDataset }}.{{ .Values.gcp.bqTable }}
+
+-----------------------------------------------------------------------
+POST-INSTALL CONFIGURATION
+-----------------------------------------------------------------------
+Two ConfigMaps are yours to edit directly — Helm will never overwrite them:
+
+  1. Operational config (queue refresh, log level, concurrency):
+     kubectl edit configmap vitalbridge-config -n {{ .Release.Namespace }}
+
+  2. Alert thresholds (HR, SpO2, temperature, respiratory rate):
+     kubectl edit configmap vitalbridge-thresholds -n {{ .Release.Namespace }}
+
+After editing thresholds, restart the alert evaluator:
+  kubectl rollout restart deployment/{{ include "vitalbridge.fullname" . }}-alert-evaluator -n {{ .Release.Namespace }}
+
+After editing operational config, restart all components:
+  kubectl rollout restart deployment -n {{ .Release.Namespace }}
+
+To update GCP resource references (requires Helm):
+  helm upgrade vitalbridge ... --set gcp.vitalsTopic=<new-topic>
+-----------------------------------------------------------------------
+
+To check pod status:
+  kubectl get pods -n {{ .Release.Namespace }}
+
+To view ingest logs:
+  kubectl logs -n {{ .Release.Namespace }} -l app.kubernetes.io/component=ingest -f
+
+To view processor logs:
+  kubectl logs -n {{ .Release.Namespace }} -l app.kubernetes.io/component=processor -f
+
+To view alert evaluator logs:
+  kubectl logs -n {{ .Release.Namespace }} -l app.kubernetes.io/component=alert-evaluator -f

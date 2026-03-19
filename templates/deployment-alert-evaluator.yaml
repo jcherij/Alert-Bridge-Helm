@@ -1,0 +1,72 @@
+# Alert Evaluator — reads processed vitals from BigQuery on a short poll cycle,
+# evaluates each reading against the configured thresholds, and triggers
+# the GCP Cloud Functions alert dispatcher via Pub/Sub for any breaches.
+# Thresholds are loaded from vitalbridge-thresholds ConfigMap which is
+# intentionally editable post-install without a Helm upgrade.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "vitalbridge.fullname" . }}-alert-evaluator
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "vitalbridge.labels" . | nindent 4 }}
+    app.kubernetes.io/component: alert-evaluator
+spec:
+  replicas: {{ .Values.alertEvaluator.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "vitalbridge.alertLabels" . | nindent 6 }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        {{- include "vitalbridge.alertLabels" . | nindent 8 }}
+      annotations:
+        checksum/gcp-config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+    spec:
+      serviceAccountName: vitalbridge-sa
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: alert-evaluator
+          image: "{{ .Values.image.alertEvaluator.repository }}:{{ .Values.image.alertEvaluator.tag }}"
+          imagePullPolicy: {{ .Values.image.alertEvaluator.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          ports:
+            - name: metrics
+              containerPort: 9090
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: vitalbridge-gcp-config
+            - configMapRef:
+                name: vitalbridge-config
+            - configMapRef:
+                name: vitalbridge-thresholds
+          resources:
+            {{- toYaml .Values.alertEvaluator.resources | nindent 12 }}
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", "pgrep -f alert"]
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}

@@ -1,0 +1,67 @@
+# ---------------------------------------------------------------------------
+# GCP References ConfigMap — managed by Helm.
+# Values injected from Terraform outputs at install/upgrade time.
+# Update by running: helm upgrade vitalbridge ... --set gcp.*=<value>
+# ---------------------------------------------------------------------------
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vitalbridge-gcp-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "vitalbridge.labels" . | nindent 4 }}
+data:
+  GCP_PROJECT:         {{ .Values.gcp.projectId | quote }}
+  VITALS_TOPIC:        {{ .Values.gcp.vitalsTopic | quote }}
+  VITALS_SUBSCRIPTION: {{ .Values.gcp.vitalsSubscription | quote }}
+  ARCHIVE_BUCKET:      {{ .Values.gcp.archiveBucket | quote }}
+  BQ_DATASET:          {{ .Values.gcp.bqDataset | quote }}
+  BQ_TABLE:            {{ .Values.gcp.bqTable | quote }}
+  ALERT_SECRET_ID:     {{ .Values.gcp.alertSecretId | quote }}
+
+---
+# ---------------------------------------------------------------------------
+# Operational Config ConfigMap — created on first install, never overwritten.
+# Edit post-install with: kubectl edit configmap vitalbridge-config -n <ns>
+# Restart affected pods after editing: kubectl rollout restart deployment -n <ns>
+# ---------------------------------------------------------------------------
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vitalbridge-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "vitalbridge.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/resource-policy: keep
+data:
+  QUEUE_REFRESH_SECONDS: {{ .Values.config.queueRefreshSeconds | quote }}
+  ENVIRONMENT:           {{ .Values.global.environment | quote }}
+  LOG_LEVEL:             "info"
+  MAX_BATCH_SIZE:        "100"
+  PROCESSOR_CONCURRENCY: "4"
+
+---
+# ---------------------------------------------------------------------------
+# Alert Thresholds ConfigMap — created on first install, never overwritten.
+# Clinical engineering edits these to tune alerting sensitivity post-install.
+# Edit with: kubectl edit configmap vitalbridge-thresholds -n <ns>
+# Restart alert-evaluator after changes: kubectl rollout restart deployment/vitalbridge-alert-evaluator -n <ns>
+# ---------------------------------------------------------------------------
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vitalbridge-thresholds
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "vitalbridge.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/resource-policy: keep
+data:
+  HEART_RATE_MIN:  {{ .Values.config.heartRateMin | quote }}
+  HEART_RATE_MAX:  {{ .Values.config.heartRateMax | quote }}
+  SPO2_MIN:        {{ .Values.config.spo2Min | quote }}
+  TEMP_MIN:        {{ .Values.config.tempMin | quote }}
+  TEMP_MAX:        {{ .Values.config.tempMax | quote }}
+  RESP_RATE_MIN:   {{ .Values.config.respRateMin | quote }}
+  RESP_RATE_MAX:   {{ .Values.config.respRateMax | quote }}

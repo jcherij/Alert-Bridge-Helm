@@ -1,0 +1,64 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "vitalbridge.fullname" . }}-ingest
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "vitalbridge.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ingest
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      {{- include "vitalbridge.ingestLabels" . | nindent 6 }}
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace }}
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 30s
+
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "vitalbridge.fullname" . }}-processor
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "vitalbridge.labels" . | nindent 4 }}
+    app.kubernetes.io/component: processor
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      {{- include "vitalbridge.processorLabels" . | nindent 6 }}
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace }}
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 30s
+
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "vitalbridge.fullname" . }}-alert-evaluator
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "vitalbridge.labels" . | nindent 4 }}
+    app.kubernetes.io/component: alert-evaluator
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      {{- include "vitalbridge.alertLabels" . | nindent 6 }}
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace }}
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 30s

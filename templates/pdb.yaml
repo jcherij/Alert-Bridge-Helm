@@ -1,0 +1,30 @@
+# Minimum 1 ingest and 1 processor pod must remain available
+# during voluntary disruptions — node upgrades, cluster autoscaler events.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "vitalbridge.fullname" . }}-ingest-pdb
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "vitalbridge.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ingest
+spec:
+  minAvailable: {{ .Values.podDisruptionBudget.ingest.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "vitalbridge.ingestLabels" . | nindent 6 }}
+
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "vitalbridge.fullname" . }}-processor-pdb
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "vitalbridge.labels" . | nindent 4 }}
+    app.kubernetes.io/component: processor
+spec:
+  minAvailable: {{ .Values.podDisruptionBudget.processor.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "vitalbridge.processorLabels" . | nindent 6 }}

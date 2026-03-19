@@ -1,0 +1,123 @@
+# BQ Partition Maintenance CronJob — expires and reorganises BigQuery
+# partitions older than the retention window. Runs weekly on Sundays at 01:00 UTC.
+# Keeps query costs predictable as the vitals dataset grows.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "vitalbridge.fullname" . }}-bq-maintenance
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "vitalbridge.labels" . | nindent 4 }}
+    app.kubernetes.io/component: bq-maintenance
+spec:
+  schedule: "0 1 * * 0"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            {{- include "vitalbridge.labels" . | nindent 12 }}
+            app.kubernetes.io/component: bq-maintenance
+        spec:
+          serviceAccountName: vitalbridge-sa
+          automountServiceAccountToken: false
+          restartPolicy: OnFailure
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: bq-maintenance
+              image: "{{ .Values.image.processor.repository }}:{{ .Values.image.processor.tag }}"
+              command: ["python", "tasks/bq_maintenance.py"]
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              envFrom:
+                - configMapRef:
+                    name: vitalbridge-gcp-config
+                - configMapRef:
+                    name: vitalbridge-config
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  cpu: 100m
+                  memory: 128Mi
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: tmp
+              emptyDir: {}
+
+---
+# DLQ Requeue CronJob — inspects the Pub/Sub DLQ and attempts to requeue
+# messages that failed due to transient errors. Runs daily at 03:00 UTC.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "vitalbridge.fullname" . }}-dlq-requeue
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "vitalbridge.labels" . | nindent 4 }}
+    app.kubernetes.io/component: dlq-requeue
+spec:
+  schedule: "0 3 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 5
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        metadata:
+          labels:
+            {{- include "vitalbridge.labels" . | nindent 12 }}
+            app.kubernetes.io/component: dlq-requeue
+        spec:
+          serviceAccountName: vitalbridge-sa
+          automountServiceAccountToken: false
+          restartPolicy: OnFailure
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: dlq-requeue
+              image: "{{ .Values.image.processor.repository }}:{{ .Values.image.processor.tag }}"
+              command: ["python", "tasks/dlq_requeue.py"]
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              envFrom:
+                - configMapRef:
+                    name: vitalbridge-gcp-config
+                - configMapRef:
+                    name: vitalbridge-config
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  cpu: 100m
+                  memory: 128Mi
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: tmp
+              emptyDir: {}

@@ -1,0 +1,69 @@
+# Stream Processor — subscribes to the GCP Pub/Sub vitals subscription,
+# parses each reading, writes to BigQuery, and archives the raw payload to GCS.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "vitalbridge.fullname" . }}-processor
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "vitalbridge.labels" . | nindent 4 }}
+    app.kubernetes.io/component: processor
+spec:
+  replicas: {{ .Values.processor.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "vitalbridge.processorLabels" . | nindent 6 }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        {{- include "vitalbridge.processorLabels" . | nindent 8 }}
+      annotations:
+        checksum/gcp-config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+    spec:
+      serviceAccountName: vitalbridge-sa
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: processor
+          image: "{{ .Values.image.processor.repository }}:{{ .Values.image.processor.tag }}"
+          imagePullPolicy: {{ .Values.image.processor.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          ports:
+            - name: metrics
+              containerPort: 9090
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: vitalbridge-gcp-config
+            - configMapRef:
+                name: vitalbridge-config
+            - configMapRef:
+                name: vitalbridge-thresholds
+          resources:
+            {{- toYaml .Values.processor.resources | nindent 12 }}
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", "pgrep -f processor"]
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}

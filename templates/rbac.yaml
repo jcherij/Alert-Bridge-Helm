@@ -1,0 +1,97 @@
+# All three components share the same service account but have separate
+# RBAC roles scoped to the resources each component actually needs.
+
+# Ingest API — reads config only
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "vitalbridge.fullname" . }}-ingest-role
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "vitalbridge.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    resourceNames: ["vitalbridge-gcp-config", "vitalbridge-config"]
+    verbs: ["get", "watch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "vitalbridge.fullname" . }}-ingest-rolebinding
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "vitalbridge.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "vitalbridge.fullname" . }}-ingest-role
+subjects:
+  - kind: ServiceAccount
+    name: vitalbridge-sa
+    namespace: {{ .Release.Namespace }}
+
+---
+# Stream processor — reads config and alert thresholds
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "vitalbridge.fullname" . }}-processor-role
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "vitalbridge.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    resourceNames: ["vitalbridge-gcp-config", "vitalbridge-config", "vitalbridge-thresholds"]
+    verbs: ["get", "watch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "vitalbridge.fullname" . }}-processor-rolebinding
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "vitalbridge.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "vitalbridge.fullname" . }}-processor-role
+subjects:
+  - kind: ServiceAccount
+    name: vitalbridge-sa
+    namespace: {{ .Release.Namespace }}
+
+---
+# Alert evaluator — reads config and thresholds
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "vitalbridge.fullname" . }}-alert-role
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "vitalbridge.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    resourceNames: ["vitalbridge-gcp-config", "vitalbridge-config", "vitalbridge-thresholds"]
+    verbs: ["get", "watch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "vitalbridge.fullname" . }}-alert-rolebinding
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "vitalbridge.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "vitalbridge.fullname" . }}-alert-role
+subjects:
+  - kind: ServiceAccount
+    name: vitalbridge-sa
+    namespace: {{ .Release.Namespace }}

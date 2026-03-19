@@ -1,0 +1,64 @@
+# Ingest API — ClusterIP; exposed externally via Ingress only
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "vitalbridge.fullname" . }}-ingest
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "vitalbridge.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ingest
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "vitalbridge.ingestLabels" . | nindent 4 }}
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP
+    - name: metrics
+      port: 9090
+      targetPort: metrics
+      protocol: TCP
+
+---
+# Processor — headless; metrics scraping only
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "vitalbridge.fullname" . }}-processor
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "vitalbridge.labels" . | nindent 4 }}
+    app.kubernetes.io/component: processor
+spec:
+  type: ClusterIP
+  clusterIP: None
+  selector:
+    {{- include "vitalbridge.processorLabels" . | nindent 4 }}
+  ports:
+    - name: metrics
+      port: 9090
+      targetPort: metrics
+      protocol: TCP
+
+---
+# Alert Evaluator — headless; metrics scraping only
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "vitalbridge.fullname" . }}-alert-evaluator
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "vitalbridge.labels" . | nindent 4 }}
+    app.kubernetes.io/component: alert-evaluator
+spec:
+  type: ClusterIP
+  clusterIP: None
+  selector:
+    {{- include "vitalbridge.alertLabels" . | nindent 4 }}
+  ports:
+    - name: metrics
+      port: 9090
+      targetPort: metrics
+      protocol: TCP

@@ -1,0 +1,81 @@
+# Ingest API — receives vitals readings from bedside monitor integrations
+# via HTTP and publishes them to the GCP Pub/Sub vitals ingest topic.
+# Stateless; horizontally scalable. Authenticates to GCP via Workload Identity.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "vitalbridge.fullname" . }}-ingest
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "vitalbridge.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ingest
+spec:
+  replicas: {{ .Values.ingest.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "vitalbridge.ingestLabels" . | nindent 6 }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        {{- include "vitalbridge.ingestLabels" . | nindent 8 }}
+      annotations:
+        # Only checksum the Helm-managed GCP config — the operational config
+        # is intentionally excluded so kubectl edits don't require a Helm upgrade
+        checksum/gcp-config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+    spec:
+      serviceAccountName: vitalbridge-sa
+      automountServiceAccountToken: false
+      priorityClassName: system-cluster-critical
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: ingest
+          image: "{{ .Values.image.ingest.repository }}:{{ .Values.image.ingest.tag }}"
+          imagePullPolicy: {{ .Values.image.ingest.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          ports:
+            - name: http
+              containerPort: {{ .Values.ingest.port }}
+              protocol: TCP
+            - name: metrics
+              containerPort: 9090
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: vitalbridge-gcp-config
+            - configMapRef:
+                name: vitalbridge-config
+          resources:
+            {{- toYaml .Values.ingest.resources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
